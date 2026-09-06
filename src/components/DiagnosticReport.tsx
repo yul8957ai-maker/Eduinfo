@@ -92,29 +92,80 @@ export const DiagnosticReport: React.FC<DiagnosticReportProps> = ({ result, onRe
     setIsGeneratingAi(true);
     setAiError(null);
 
-    try {
-      const res = await fetch('/api/generate-counselor-notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          traineeInfo: result.traineeInfo,
-          overallMean: result.overallMean,
-          topStrengths: result.topStrengths,
-          growthAreas: result.growthAreas,
-          apiKey: customKey,
-        }),
-      });
+    const activeKey = customKey || sessionStorage.getItem('h_lsit_custom_key') || '';
 
-      const data = await res.json();
-      if (res.ok && data.feedback) {
-        setCounselorFeedback(data.feedback);
+    // Pedagogical prompt
+    const promptText = `당신은 현대직업전문학교의 심리측정학 및 직업훈련 전문 상담교사입니다.
+다음 훈련생의 H-LSIT(성인학습자 학습성향 진단도구) 검사 결과를 분석하고, 훈련교사용 종합 지도 소견 및 사후관리 가이드를 3~4문장의 전문적이고 정중한 한국어로 작성해주세요.
+
+[훈련생 정보]
+- 성명: ${result.traineeInfo?.name || "훈련생"}
+- 훈련과정: ${result.traineeInfo?.courseName || "직업훈련과정"}
+- 연령대: ${result.traineeInfo?.ageGroup || "성인"}
+- 훈련목표: ${result.traineeInfo?.goalType || "취업"}
+- 종합 점수: ${result.overallMean ? Number(result.overallMean).toFixed(2) : "3.50"} / 6.00점
+
+[핵심 강점 요인]
+${result.topStrengths?.map((s) => `- ${s.factorName} (${s.rawMean?.toFixed(2)}점): ${s.strengths}`).join("\n") || "정보 없음"}
+
+[집중 성장 과제]
+${result.growthAreas?.map((g) => `- ${g.factorName} (${g.rawMean?.toFixed(2)}점): ${g.cautions}`).join("\n") || "정보 없음"}
+
+[작성 가이드라인]
+1. 훈련생의 우수한 학습 강점을 먼저 칭찬하고 실습 프로젝트에서의 활용 방안을 제시하세요.
+2. 성장 과제로 도출된 취약 요인을 직업훈련 현장(출결, 실습 에러 대처, 동료 협력 등)에서 보완할 수 있는 실천적 코칭 팁을 제안하세요.
+3. 훈련교사 면담 및 포트폴리오 관리와 연계된 격려의 어조로 마무리해주세요.`;
+
+    try {
+      // 1. Try server backend endpoint first
+      let generatedText: string | null = null;
+      try {
+        const res = await fetch('/api/generate-counselor-notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            traineeInfo: result.traineeInfo,
+            overallMean: result.overallMean,
+            topStrengths: result.topStrengths,
+            growthAreas: result.growthAreas,
+            apiKey: activeKey,
+          }),
+        });
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const data = await res.json();
+          if (res.ok && data.feedback) {
+            generatedText = data.feedback;
+          }
+        }
+      } catch {
+        // Backend not available (e.g. Vercel static deployment)
+      }
+
+      // 2. If server didn't generate and we have a key, call Google Gemini directly
+      if (!generatedText && activeKey) {
+        const directUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(activeKey)}`;
+        const directRes = await fetch(directUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: promptText }] }]
+          })
+        });
+        const directData = await directRes.json().catch(() => null);
+        generatedText = directData?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+      }
+
+      if (generatedText) {
+        setCounselorFeedback(generatedText);
         setIsSavedFeedback(true);
         setTimeout(() => setIsSavedFeedback(false), 3000);
       } else {
-        setAiError(data.error || 'AI 소견 생성에 실패했습니다. API Key 상태를 확인해주세요.');
+        setAiError('AI 소견 생성에 실패했습니다. 유효한 API Key인지 확인해주세요.');
       }
     } catch (err: any) {
-      setAiError('서버와의 통신 중 오류가 발생했습니다.');
+      console.error('AI generation error:', err);
+      setAiError('AI 소견 생성 중 통신 오류가 발생했습니다.');
     } finally {
       setIsGeneratingAi(false);
     }

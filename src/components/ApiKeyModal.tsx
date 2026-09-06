@@ -171,7 +171,7 @@ export function ApiKeyModal() {
                   <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">추천</span>
                 </div>
                 <p className="text-xs text-slate-600">
-                  Google AI Studio에서 발급받은 본인의 API Key를 입력하여 실시간 승인을 받으세요. (현재 브라우저 세션에 안전하게 인증됩니다)
+                  Google AI Studio에서 발급받은 본인의 API Key를 입력하여 실시간 승인을 받으세요. (Vercel 등 외부 배포 환경에서도 Google 서버와 직접 통신하여 안전하게 승인됩니다)
                 </p>
 
                 <div className="relative">
