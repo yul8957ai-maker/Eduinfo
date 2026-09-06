@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useApiKeyAuth } from '../context/ApiKeyContext';
 import { 
   Sparkles, 
   ArrowRight, 
@@ -20,7 +21,9 @@ import {
   Clock,
   Brain,
   Layers,
-  GraduationCap
+  GraduationCap,
+  Lock,
+  KeyRound
 } from 'lucide-react';
 import { FACTORS, SAMPLE_PROFILES } from '../data/diagnosticFramework';
 
@@ -38,12 +41,64 @@ export function LandingPage({
   onViewSpecs
 }: LandingPageProps) {
   const [selectedPersonaIndex, setSelectedPersonaIndex] = useState(0);
+  const { isApproved, openModal, maskedKey } = useApiKeyAuth();
 
   const activePersona = SAMPLE_PROFILES[selectedPersonaIndex];
+
+  const handleGuardedAction = (action: () => void, featureName: string) => {
+    if (!isApproved) {
+      openModal(`${featureName}을(를) 이용하시려면 먼저 API Key 유효성 승인을 받아야 합니다.`);
+      return;
+    }
+    action();
+  };
 
   return (
     <div className="space-y-16 sm:space-y-24 animate-fade-in pb-12">
       
+      {/* API Key Status Notice Banner */}
+      {!isApproved ? (
+        <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3 text-amber-900 text-xs sm:text-sm">
+          <div className="flex items-center gap-2.5 text-center sm:text-left">
+            <div className="w-8 h-8 rounded-lg bg-amber-100 border border-amber-300 text-amber-700 flex items-center justify-center shrink-0">
+              <Lock className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-bold block text-amber-950">
+                ⚠️ API Key 승인 대기 중 (검사 및 전체 메뉴 제한됨)
+              </span>
+              <span className="text-amber-800 text-xs">
+                진단 검사 시작, 결과 리포트, 가이드북 열람을 위해 유효한 Google Gemini API Key 승인을 완료해주세요.
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => openModal('전체 메뉴를 사용하시려면 API Key 유효성 승인이 필요합니다.')}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all shrink-0 cursor-pointer"
+          >
+            <KeyRound className="w-3.5 h-3.5" />
+            <span>🔑 API Key 승인받기</span>
+          </button>
+        </div>
+      ) : (
+        <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-200 shadow-2xs flex items-center justify-between text-emerald-900 text-xs">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              <strong>API Key 승인 완료:</strong> 전체 진단 검사 및 결과 분석 메뉴가 정상 활성화되어 있습니다. ({maskedKey})
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => openModal()}
+            className="text-emerald-700 hover:text-emerald-900 underline font-semibold text-[11px]"
+          >
+            관리/변경
+          </button>
+        </div>
+      )}
+
       {/* 1. HERO SECTION: High-Impact & Eye-Catching */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-slate-900 via-slate-900 to-blue-950 text-white p-6 sm:p-12 lg:p-16 border border-slate-800 shadow-xl">
         {/* Subtle background glow effect */}
@@ -94,25 +149,26 @@ export function LandingPage({
           <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
             <button
               type="button"
-              onClick={onStartTest}
+              onClick={() => handleGuardedAction(onStartTest, '진단 검사')}
               className="w-full sm:w-auto px-7 py-4 bg-blue-600 hover:bg-blue-500 active:scale-98 text-white rounded-xl font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
             >
+              {!isApproved && <Lock className="w-4 h-4 text-blue-200" />}
               <span>👉 3분 만에 내 학습성향 진단하기</span>
               <ArrowRight className="w-4 h-4" />
             </button>
             <button
               type="button"
-              onClick={() => onViewSampleReport('sample-1')}
+              onClick={() => handleGuardedAction(() => onViewSampleReport('sample-1'), '결과 리포트')}
               className="w-full sm:w-auto px-6 py-4 bg-white/10 hover:bg-white/15 active:scale-98 text-white rounded-xl font-bold text-sm sm:text-base flex items-center justify-center gap-2 border border-white/20 transition-all cursor-pointer"
             >
-              <BarChart3 className="w-4 h-4 text-blue-300" />
+              {!isApproved ? <Lock className="w-4 h-4 text-slate-400" /> : <BarChart3 className="w-4 h-4 text-blue-300" />}
               <span>실제 진단 결과 리포트 미리보기</span>
             </button>
           </div>
 
           <div className="flex items-center justify-center gap-6 text-xs text-slate-400 pt-2">
             <span className="flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> 회원가입/비용 없음
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> 회원가입 불필요
             </span>
             <span className="flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> 즉시 결과 도출
@@ -221,10 +277,10 @@ export function LandingPage({
           </div>
           <button
             type="button"
-            onClick={onViewSpecs}
+            onClick={() => handleGuardedAction(onViewSpecs, '심리측정 명세서')}
             className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs self-start md:self-auto cursor-pointer"
           >
-            <FileText className="w-3.5 h-3.5 text-blue-600" />
+            {!isApproved ? <Lock className="w-3.5 h-3.5 text-slate-400" /> : <FileText className="w-3.5 h-3.5 text-blue-600" />}
             <span>학술적 개발 명세서 보기</span>
           </button>
         </div>
@@ -343,10 +399,10 @@ export function LandingPage({
             </div>
             <button
               type="button"
-              onClick={() => onViewSampleReport(activePersona.id)}
+              onClick={() => handleGuardedAction(() => onViewSampleReport(activePersona.id), `${activePersona.name} 리포트`)}
               className="w-full py-3 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
             >
-              <BarChart3 className="w-4 h-4" />
+              {!isApproved ? <Lock className="w-4 h-4 text-blue-200" /> : <BarChart3 className="w-4 h-4" />}
               <span>이 프로파일로 리포트 즉시 열람하기</span>
             </button>
           </div>
@@ -541,17 +597,19 @@ export function LandingPage({
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
             <button
               type="button"
-              onClick={onStartTest}
-              className="w-full sm:w-auto px-8 py-4 bg-white hover:bg-slate-100 active:scale-98 text-blue-800 rounded-xl font-extrabold text-sm sm:text-base shadow-md transition-all cursor-pointer"
+              onClick={() => handleGuardedAction(onStartTest, '진단 검사')}
+              className="w-full sm:w-auto px-8 py-4 bg-white hover:bg-slate-100 active:scale-98 text-blue-800 rounded-xl font-extrabold text-sm sm:text-base shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
             >
-              🚀 지금 바로 3분 진단 시작하기
+              {!isApproved ? <Lock className="w-4 h-4 text-blue-800" /> : null}
+              <span>🚀 지금 바로 3분 진단 시작하기</span>
             </button>
             <button
               type="button"
-              onClick={onViewGuide}
-              className="w-full sm:w-auto px-6 py-4 bg-blue-800/80 hover:bg-blue-800 text-white rounded-xl font-bold text-sm sm:text-base border border-blue-500/40 transition-all cursor-pointer"
+              onClick={() => handleGuardedAction(onViewGuide, '훈련교사 가이드')}
+              className="w-full sm:w-auto px-6 py-4 bg-blue-800/80 hover:bg-blue-800 text-white rounded-xl font-bold text-sm sm:text-base border border-blue-500/40 transition-all cursor-pointer flex items-center justify-center gap-2"
             >
-              📖 훈련교사용 가이드 열람
+              {!isApproved ? <Lock className="w-4 h-4 text-blue-200" /> : null}
+              <span>📖 훈련교사용 가이드 열람</span>
             </button>
           </div>
         </div>

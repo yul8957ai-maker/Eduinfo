@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { DiagnosticResult, FactorScoreResult, FactorId } from '../types';
 import { RadarChart } from './RadarChart';
 import { downloadReportAsPdf, exportReportAsHtml } from '../utils/exportUtils';
+import { useApiKeyAuth } from '../context/ApiKeyContext';
 import { 
   Printer, 
   Award, 
@@ -21,7 +22,8 @@ import {
   FileCode,
   RotateCcw,
   CheckCircle2,
-  Loader2
+  Loader2,
+  Sparkles
 } from 'lucide-react';
 
 interface DiagnosticReportProps {
@@ -37,6 +39,10 @@ export const DiagnosticReport: React.FC<DiagnosticReportProps> = ({ result, onRe
   const [isSavedFeedback, setIsSavedFeedback] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const { customKey, isApproved, openModal } = useApiKeyAuth();
 
   const reportCardRef = useRef<HTMLDivElement>(null);
 
@@ -76,6 +82,42 @@ export const DiagnosticReport: React.FC<DiagnosticReportProps> = ({ result, onRe
   const handleSaveFeedback = () => {
     setIsSavedFeedback(true);
     setTimeout(() => setIsSavedFeedback(false), 2000);
+  };
+
+  const handleGenerateAiFeedback = async () => {
+    if (!isApproved) {
+      openModal('AI 맞춤형 지도 소견을 생성하시려면 API Key 유효성 승인이 필요합니다.');
+      return;
+    }
+    setIsGeneratingAi(true);
+    setAiError(null);
+
+    try {
+      const res = await fetch('/api/generate-counselor-notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          traineeInfo: result.traineeInfo,
+          overallMean: result.overallMean,
+          topStrengths: result.topStrengths,
+          growthAreas: result.growthAreas,
+          apiKey: customKey,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.feedback) {
+        setCounselorFeedback(data.feedback);
+        setIsSavedFeedback(true);
+        setTimeout(() => setIsSavedFeedback(false), 3000);
+      } else {
+        setAiError(data.error || 'AI 소견 생성에 실패했습니다. API Key 상태를 확인해주세요.');
+      }
+    } catch (err: any) {
+      setAiError('서버와의 통신 중 오류가 발생했습니다.');
+    } finally {
+      setIsGeneratingAi(false);
+    }
   };
 
   const getLevelBadgeClass = (level: string) => {
@@ -476,19 +518,45 @@ export const DiagnosticReport: React.FC<DiagnosticReportProps> = ({ result, onRe
           {/* Section 4: Counselor 1:1 Feedback Memo Field */}
           <div className="border-t border-slate-100 pt-8">
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
                   <FileEdit className="w-4 h-4 text-blue-700" />
                   <span>담임 훈련교사 1:1 상담 및 피드백 소견란</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleSaveFeedback}
-                  className="px-3 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-semibold print:hidden transition-colors cursor-pointer shadow-xs"
-                >
-                  {isSavedFeedback ? '저장되었습니다!' : '소견 메모 저장'}
-                </button>
+                <div className="flex items-center gap-2 print:hidden">
+                  <button
+                    type="button"
+                    onClick={handleGenerateAiFeedback}
+                    disabled={isGeneratingAi}
+                    className="px-3 py-1.5 bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-800 hover:to-indigo-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {isGeneratingAi ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>AI 소견 작성 중...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+                        <span>✨ AI 소견 자동 생성</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveFeedback}
+                    className="px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+                  >
+                    {isSavedFeedback ? '저장되었습니다!' : '소견 메모 저장'}
+                  </button>
+                </div>
               </div>
+
+              {aiError && (
+                <div className="p-2 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-xs print:hidden">
+                  {aiError}
+                </div>
+              )}
 
               <textarea
                 rows={3}
