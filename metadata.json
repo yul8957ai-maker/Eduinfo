@@ -1,0 +1,6 @@
+{
+  "name": "현대직업전문학교 학습성향 진단도구",
+  "description": "현대직업전문학교 훈련생의 맞춤형 학습전략 수립 및 훈련교사 상담 지원을 위한 심리측정학적 학습성향 진단도구",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
